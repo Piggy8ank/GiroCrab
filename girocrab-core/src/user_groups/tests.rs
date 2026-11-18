@@ -830,7 +830,8 @@ fn downgrade_to_v6(v: &Vault) {
     let db = v.db().unwrap();
     db.execute_batch(
         "DROP TABLE user_groups; DROP TABLE sync_log;
-         DROP TABLE holding_purchases; DROP TABLE security_prices;",
+         DROP TABLE holding_purchases; DROP TABLE security_prices;
+         DROP TABLE security_tickers;",
     )
     .unwrap();
     for (col, _) in super::ACCOUNT_COLUMNS {

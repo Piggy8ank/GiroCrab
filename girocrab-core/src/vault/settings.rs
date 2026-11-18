@@ -37,6 +37,7 @@ pub const KNOWN_SETTINGS: &[(&str, &str, &str, &str, bool, &str)] = &[
     ("enablebanking.use.amex", "American Express per Enable Banking abrufen", "1 = PSD2-API statt Web-Login (eigene Enable-Banking-Anwendung nötig). Leer oder 0 = Web-Login.", "Enable Banking (PSD2)", false, ""),
     ("enablebanking.use.amazonvisa", "Amazon Visa per Enable Banking abrufen", "1 = PSD2-API statt Web-Login (eigene Enable-Banking-Anwendung nötig). Leer oder 0 = Web-Login.", "Enable Banking (PSD2)", false, ""),
     ("merchants.online_logos", "Händler-Logos online laden", "Anbieter für Händler-Logos: off, duckduckgo oder google. Logos werden verschlüsselt zwischengespeichert; übertragen wird nur die Händler-Domain (z. B. lidl.de). Standard: off.", "Händler-Logos", false, "off"),
+    ("alphavantage.api_key", "Alpha Vantage API-Key", "Kostenlos auf alphavantage.co/support/#api-key. Nötig, um historische Kurse für Depot-Positionen nachzuladen (25 Anfragen/Tag im kostenlosen Tarif).", "Kursdaten (Alpha Vantage)", true, ""),
     ("sync.psd2_auto_hours", "Automatischer PSD2-Abruf (Stunden)", "Solange GiroCrab läuft, werden PSD2-Bankzugänge (Enable Banking) alle N Stunden ohne TAN abgerufen, solange die Zustimmung gilt. Banken erlauben meist nur 4 Abrufe pro Tag. 0 = aus.", "Allgemein", false, "6"),
     ("sync.days_back", "Tage beim ersten Abruf", "Ältere Umsätze werden nur einmal abgefragt.", "Allgemein", false, "90"),
 ];

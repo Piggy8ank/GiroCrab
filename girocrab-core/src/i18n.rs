@@ -625,6 +625,9 @@ fn english(de: &str) -> Option<&'static str> {
         "Tage beim ersten Abruf" => "Days on first sync",
         "Ältere Umsätze werden nur einmal abgefragt." => "Older transactions are only fetched once.",
         "Allgemein" => "General",
+        "Alpha Vantage API-Key" => "Alpha Vantage API key",
+        "Kostenlos auf alphavantage.co/support/#api-key. Nötig, um historische Kurse für Depot-Positionen nachzuladen (25 Anfragen/Tag im kostenlosen Tarif)." => "Free at alphavantage.co/support/#api-key. Needed to backfill historical prices for depot positions (25 requests/day on the free tier).",
+        "Kursdaten (Alpha Vantage)" => "Price data (Alpha Vantage)",
         // ------------------------------------------------------------ vault.rs settings (same in both languages)
         "PayPal Secret" => "PayPal secret",
         "Enable Banking Private Key (PEM)" => "Enable Banking private key (PEM)",

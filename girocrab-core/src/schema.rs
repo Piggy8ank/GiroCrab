@@ -48,6 +48,7 @@ const STEPS: &[Step] = &[
     Step::Sql(SYNC_LOG),          // 11
     Step::Hook(sepa_refs),        // 12
     Step::Sql(HOLDING_EXTRAS),    // 13
+    Step::Sql(SECURITY_TICKERS),  // 14
 ];
 
 /// Step 12: SEPA references of a booking, bank-independent (end-to-end id,
@@ -119,6 +120,19 @@ CREATE TABLE security_prices (
 );
 CREATE UNIQUE INDEX security_prices_key ON security_prices(isin, price_date);
 CREATE INDEX security_prices_series ON security_prices(isin, price_date DESC);
+";
+
+/// Step 14: the ticker symbol used to look up a security's history at an
+/// external, API-key-based provider (currently Alpha Vantage), which has no
+/// ISIN support – only a ticker `symbol`. One mapping per ISIN, shared
+/// across every account that holds it, entered once by the user next to the
+/// manual purchase data (see `vault/holdings.rs`).
+const SECURITY_TICKERS: &str = "
+CREATE TABLE security_tickers (
+    isin       TEXT    PRIMARY KEY,
+    symbol     TEXT    NOT NULL,
+    updated_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+);
 ";
 
 /// Schema version of a vault written by this build.
@@ -547,7 +561,7 @@ mod tests {
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .unwrap();
         assert_eq!(v, SCHEMA_VERSION);
-        assert_eq!(SCHEMA_VERSION, 13);
+        assert_eq!(SCHEMA_VERSION, 14);
     }
 
     #[test]

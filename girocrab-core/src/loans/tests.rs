@@ -375,6 +375,7 @@ fn vault_without_loan_tables_is_migrated() {
         db.execute_batch(
             "DROP TABLE loan_links; DROP TABLE loan_terms; DROP TABLE sync_log;
              DROP TABLE holding_purchases; DROP TABLE security_prices;
+             DROP TABLE security_tickers;
              PRAGMA user_version = 8;",
         )
         .unwrap();

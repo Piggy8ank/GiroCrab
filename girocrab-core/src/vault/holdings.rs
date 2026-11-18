@@ -134,6 +134,52 @@ impl Vault {
         Ok(rows)
     }
 
+    /// The ticker symbol stored for `isin` (e.g. `"SAP.DEX"`, `"AAPL"`),
+    /// used to look up price history at an external, symbol-only provider
+    /// (Alpha Vantage has no ISIN support). `None` if nothing is stored yet.
+    pub fn security_ticker(&self, isin: String) -> Result<Option<String>, CoreError> {
+        let isin = isin.trim();
+        if isin.is_empty() {
+            return Ok(None);
+        }
+        let db = self.db()?;
+        db.query_row(
+            "SELECT symbol FROM security_tickers WHERE isin = ?1",
+            params![isin],
+            |r| r.get(0),
+        )
+        .optional()
+        .map_err(CoreError::from)
+    }
+
+    /// Stores (or, given an empty symbol, clears) the ticker symbol for an
+    /// ISIN. Shared across every account that holds the security.
+    pub fn set_security_ticker(&self, isin: String, symbol: String) -> Result<(), CoreError> {
+        let isin = isin.trim().to_string();
+        let symbol = symbol.trim().to_string();
+        if isin.is_empty() {
+            return Err(CoreError::InvalidInput {
+                message: "ISIN fehlt.".into(),
+            });
+        }
+        let db = self.db()?;
+        if symbol.is_empty() {
+            db.execute(
+                "DELETE FROM security_tickers WHERE isin = ?1",
+                params![isin],
+            )?;
+        } else {
+            db.execute(
+                "INSERT INTO security_tickers(isin, symbol, updated_at)
+                 VALUES (?1, ?2, strftime('%s','now'))
+                 ON CONFLICT(isin) DO UPDATE SET
+                    symbol = excluded.symbol, updated_at = excluded.updated_at",
+                params![isin, symbol],
+            )?;
+        }
+        Ok(())
+    }
+
     /// Records one day's closing price for a security.
     ///
     /// `source = "sync"` always wins for that day (a fresh sync overwrites
@@ -276,7 +322,7 @@ mod tests {
             "2024-03-01".into(),
             100_00,
             "EUR".into(),
-            "boerse-frankfurt".into(),
+            "alphavantage".into(),
         )
         .unwrap();
         v.record_security_price(
@@ -293,7 +339,7 @@ mod tests {
             "2024-03-01".into(),
             999_00,
             "EUR".into(),
-            "boerse-frankfurt".into(),
+            "alphavantage".into(),
         )
         .unwrap();
 
@@ -301,6 +347,38 @@ mod tests {
         assert_eq!(hist.len(), 1);
         assert_eq!(hist[0].close_price_cents, 101_00);
         assert_eq!(hist[0].source, "sync");
+    }
+
+    #[test]
+    fn ticker_round_trips_and_clears() {
+        let v = vault("ticker-round-trip");
+        assert_eq!(v.security_ticker("DE0007164600".into()).unwrap(), None);
+
+        v.set_security_ticker("DE0007164600".into(), "SAP.DEX".into())
+            .unwrap();
+        assert_eq!(
+            v.security_ticker("DE0007164600".into()).unwrap(),
+            Some("SAP.DEX".into())
+        );
+
+        // Overwriting replaces, not duplicates.
+        v.set_security_ticker("DE0007164600".into(), "SAP".into())
+            .unwrap();
+        assert_eq!(
+            v.security_ticker("DE0007164600".into()).unwrap(),
+            Some("SAP".into())
+        );
+
+        // Empty symbol clears it.
+        v.set_security_ticker("DE0007164600".into(), "".into())
+            .unwrap();
+        assert_eq!(v.security_ticker("DE0007164600".into()).unwrap(), None);
+    }
+
+    #[test]
+    fn ticker_needs_an_isin() {
+        let v = vault("ticker-needs-isin");
+        assert!(v.set_security_ticker("".into(), "SAP".into()).is_err());
     }
 
     #[test]
@@ -312,7 +390,7 @@ mod tests {
                 date.into(),
                 price,
                 "EUR".into(),
-                "boerse-frankfurt".into(),
+                "alphavantage".into(),
             )
             .unwrap();
         }

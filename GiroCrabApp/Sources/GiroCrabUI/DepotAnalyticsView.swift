@@ -246,6 +246,7 @@ struct PositionDetailSheet: View {
     @State private var note = ""
     @State private var backfilling = false
     @State private var saving = false
+    @State private var tickerSymbol = ""
 
     var body: some View {
         ScrollView {
@@ -287,18 +288,27 @@ struct PositionDetailSheet: View {
             )
             .frame(height: 160)
         }
-        HStack {
-            Button {
-                Task { await backfill() }
-            } label: {
-                if backfilling {
-                    ProgressView().controlSize(.small)
-                } else {
-                    Label("Externe Kurshistorie laden", systemImage: "arrow.down.circle")
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                TextField("Ticker-Symbol für Alpha Vantage, z. B. SAP.DEX", text: $tickerSymbol)
+                    #if os(iOS)
+                    .textInputAutocapitalization(.characters)
+                    #endif
+                    .frame(maxWidth: 260)
+                Button {
+                    Task { await backfill() }
+                } label: {
+                    if backfilling {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Label("Externe Kurshistorie laden", systemImage: "arrow.down.circle")
+                    }
                 }
+                .disabled(backfilling || holding.isin.isEmpty || tickerSymbol.trimmingCharacters(in: .whitespaces).isEmpty)
+                Spacer()
             }
-            .disabled(backfilling || holding.isin.isEmpty)
-            Spacer()
+            Text("Benötigt einen kostenlosen Alpha-Vantage-API-Key in den Einstellungen; das Ticker-Symbol wird für diese ISIN gemerkt.")
+                .font(.caption2).foregroundStyle(Theme.secondary)
         }
     }
 
@@ -347,6 +357,7 @@ struct PositionDetailSheet: View {
     private func reload() async {
         let isin = holding.isin
         history = (try? await model.vaultOffMain { try $0.securityPriceHistory(isin: isin) }) ?? []
+        tickerSymbol = (try? await model.vaultOffMain { try $0.securityTicker(isin: isin) })?.flatMap { $0 } ?? ""
         let accID = account.id
         let wkn = holding.wkn
         performance = try? await model.vaultOffMain {
@@ -384,13 +395,15 @@ struct PositionDetailSheet: View {
     }
 
     private func backfill() async {
-        guard !holding.isin.isEmpty else { return }
+        let symbol = tickerSymbol.trimmingCharacters(in: .whitespaces)
+        guard !holding.isin.isEmpty, !symbol.isEmpty else { return }
         backfilling = true
         defer { backfilling = false }
         let isin = holding.isin
         let to = DateText.iso(Date())
         let from = DateText.iso(Calendar.current.date(byAdding: .year, value: -5, to: Date()) ?? Date())
         do {
+            try await model.requireVaultOffMain { try $0.setSecurityTicker(isin: isin, symbol: symbol) }
             guard let vault = model.vault else { return }
             _ = try await vault.backfillSecurityPriceHistory(isin: isin, from: from, to: to)
             await reload()
