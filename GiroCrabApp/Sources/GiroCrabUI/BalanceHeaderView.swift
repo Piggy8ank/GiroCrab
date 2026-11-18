@@ -7,6 +7,13 @@ struct HoldingsCard: View {
     @Environment(AppModel.self) private var model
     let account: Account
     @State private var holdings: [Holding] = []
+    /// Tapped position (Aktien-Auswertung: Kursverlauf, Kaufzeitpunkt, GuV).
+    @State private var selected: HoldingRef?
+
+    private struct HoldingRef: Identifiable {
+        let id: String
+        let holding: Holding
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -15,23 +22,29 @@ struct HoldingsCard: View {
             }
             ForEach(holdings.indices, id: \.self) { i in
                 let h = holdings[i]
-                HStack(alignment: .firstTextBaseline) {
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(h.name.isEmpty ? (h.isin.isEmpty ? h.wkn : h.isin) : h.name).lineLimit(1)
-                        Text("\(h.quantity.formatted(.number.precision(.fractionLength(0...4)))) × \(Money.format(h.currentPriceCents)) · \(h.isin.isEmpty ? h.wkn : h.isin)")
-                            .font(.caption2).foregroundStyle(Theme.secondary).lineLimit(1)
-                    }
-                    Spacer()
-                    VStack(alignment: .trailing, spacing: 1) {
-                        Text(Money.format(h.valueCents)).monospacedDigit()
-                        if let gain = Self.calculatedGain(h) {
-                            Text("GuV (berechnet): \(Money.format(gain.cents)) (\(gain.percent.formatted(.number.precision(.fractionLength(2)))) %)")
-                                .font(.caption2).monospacedDigit()
-                                .foregroundStyle(gain.cents < 0 ? Color.red : Color.green)
+                Button {
+                    selected = HoldingRef(id: h.isin.isEmpty ? h.wkn : h.isin, holding: h)
+                } label: {
+                    HStack(alignment: .firstTextBaseline) {
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(h.name.isEmpty ? (h.isin.isEmpty ? h.wkn : h.isin) : h.name).lineLimit(1)
+                            Text("\(h.quantity.formatted(.number.precision(.fractionLength(0...4)))) × \(Money.format(h.currentPriceCents)) · \(h.isin.isEmpty ? h.wkn : h.isin)")
+                                .font(.caption2).foregroundStyle(Theme.secondary).lineLimit(1)
+                        }
+                        Spacer()
+                        VStack(alignment: .trailing, spacing: 1) {
+                            Text(Money.format(h.valueCents)).monospacedDigit()
+                            if let gain = Self.calculatedGain(h) {
+                                Text("GuV (berechnet): \(Money.format(gain.cents)) (\(gain.percent.formatted(.number.precision(.fractionLength(2)))) %)")
+                                    .font(.caption2).monospacedDigit()
+                                    .foregroundStyle(gain.cents < 0 ? Color.red : Color.green)
+                            }
                         }
                     }
+                    .font(.callout)
+                    .contentShape(Rectangle())
                 }
-                .font(.callout)
+                .buttonStyle(.plain)
                 .contextMenu {
                     Button("Position kopieren", systemImage: "doc.on.doc") { copyToPasteboard(Self.line(h)) }
                     Button("Alle Positionen kopieren", systemImage: "doc.on.doc.fill") {
@@ -42,6 +55,9 @@ struct HoldingsCard: View {
         }
         .task(id: "\(account.id)-\(account.balanceCents)-\(account.balanceDate)") {
             holdings = model.holdings(for: account.id)
+        }
+        .sheet(item: $selected) { ref in
+            PositionDetailSheet(account: account, holding: ref.holding)
         }
     }
 }
@@ -111,6 +127,7 @@ struct StreamHeaderCard: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     #endif
     @State private var showDocuments = false
+    @State private var showAnalytics = false
     @AppStorage(ViewLayout.statisticsKey) private var showStatistics: Bool = true
 
     private var account: Account? {
@@ -222,6 +239,11 @@ struct StreamHeaderCard: View {
                 }
                 .buttonStyle(.borderless)
                 .sheet(isPresented: $showDocuments) { AccountDocumentsSheet(account: a) }
+                Button { showAnalytics = true } label: {
+                    Label("Auswertung", systemImage: "chart.line.uptrend.xyaxis")
+                }
+                .buttonStyle(.borderless)
+                .sheet(isPresented: $showAnalytics) { DepotAnalyticsSheet(account: a) }
             }
             Spacer()
             Text("Depot: Positionen statt Buchungen")
