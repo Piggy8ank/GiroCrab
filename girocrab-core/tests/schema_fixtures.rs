@@ -256,6 +256,8 @@ fn half_migrated_v8_vault_is_repaired() {
              DROP TABLE opening_balances;
              DROP TABLE sync_log;
              ALTER TABLE accounts DROP COLUMN balance_derived;
+             DROP TABLE holding_purchases;
+             DROP TABLE security_prices;
              PRAGMA user_version = 8;",
         )
         .unwrap();

@@ -828,8 +828,11 @@ fn total(v: &Vault) -> i64 {
 /// the new `accounts` columns, `user_version` 6.
 fn downgrade_to_v6(v: &Vault) {
     let db = v.db().unwrap();
-    db.execute_batch("DROP TABLE user_groups; DROP TABLE sync_log;")
-        .unwrap();
+    db.execute_batch(
+        "DROP TABLE user_groups; DROP TABLE sync_log;
+         DROP TABLE holding_purchases; DROP TABLE security_prices;",
+    )
+    .unwrap();
     for (col, _) in super::ACCOUNT_COLUMNS {
         db.execute_batch(&format!("ALTER TABLE accounts DROP COLUMN {col};"))
             .unwrap();

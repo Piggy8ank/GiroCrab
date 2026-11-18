@@ -14,6 +14,10 @@
 //!   `accounts.balance_derived`.
 //! - 11: sync log (#238): table `sync_log`, local to the device.
 //! - 12: SEPA references on bookings: `end_to_end_id`, `mandate_id`, `creditor_id`.
+//! - 13: depot extras that must survive a holdings sync (which replaces every
+//!   row in `holdings`): tables `holding_purchases` (manual purchase date,
+//!   optional price override, note) and `security_prices` (daily price
+//!   history, combining sync snapshots and backfilled external history).
 //!
 //! Schema changes are a new step at the end of [`STEPS`]; never edit an
 //! existing step. After a bump, run
@@ -43,6 +47,7 @@ const STEPS: &[Step] = &[
     Step::Hook(opening_balances), // 10
     Step::Sql(SYNC_LOG),          // 11
     Step::Hook(sepa_refs),        // 12
+    Step::Sql(HOLDING_EXTRAS),    // 13
 ];
 
 /// Step 12: SEPA references of a booking, bank-independent (end-to-end id,
@@ -73,6 +78,47 @@ CREATE TABLE sync_log (
     imported        INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX sync_log_ts ON sync_log(ts_ms);
+";
+
+/// Step 13: `holdings` is deleted and reinserted wholesale on every sync
+/// (`connectors::persist::store_fetch`), so anything the user enters by hand
+/// about a position must live elsewhere, keyed by the security (account +
+/// ISIN/WKN) rather than by the `holdings` row's id, which does not survive
+/// a sync.
+///
+/// - `holding_purchases`: the user's own purchase date, an optional price
+///   override and a note per security held in one account. Manual only –
+///   no connector currently supplies buy-order history.
+/// - `security_prices`: one row per ISIN per calendar day. `source = 'sync'`
+///   is a snapshot of the connector's current price taken at sync time;
+///   any other source backfills history from before the first sync. A day
+///   already recorded from a sync is never overwritten by a backfill (the
+///   day's own real closing price beats an external source's price for the
+///   same day) – see `record_security_price`.
+const HOLDING_EXTRAS: &str = "
+CREATE TABLE holding_purchases (
+    id                   INTEGER PRIMARY KEY,
+    account_id           INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    isin                 TEXT    NOT NULL DEFAULT '',
+    wkn                  TEXT    NOT NULL DEFAULT '',
+    purchased_at         TEXT    NOT NULL DEFAULT '', -- ISO date (YYYY-MM-DD); '' = unknown
+    purchase_price_cents INTEGER,                     -- NULL = use the synced purchase price
+    note                 TEXT    NOT NULL DEFAULT '',
+    updated_at           INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+);
+CREATE UNIQUE INDEX holding_purchases_key ON holding_purchases(account_id, isin, wkn);
+
+CREATE TABLE security_prices (
+    id                INTEGER PRIMARY KEY,
+    isin              TEXT    NOT NULL,
+    price_date        TEXT    NOT NULL, -- ISO date (YYYY-MM-DD)
+    close_price_cents INTEGER NOT NULL,
+    currency          TEXT    NOT NULL DEFAULT 'EUR',
+    source            TEXT    NOT NULL DEFAULT '', -- 'sync', else an external provider's key
+    created_at        INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+);
+CREATE UNIQUE INDEX security_prices_key ON security_prices(isin, price_date);
+CREATE INDEX security_prices_series ON security_prices(isin, price_date DESC);
 ";
 
 /// Schema version of a vault written by this build.
@@ -501,7 +547,7 @@ mod tests {
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .unwrap();
         assert_eq!(v, SCHEMA_VERSION);
-        assert_eq!(SCHEMA_VERSION, 12);
+        assert_eq!(SCHEMA_VERSION, 13);
     }
 
     #[test]

@@ -25,6 +25,7 @@ use crate::error::{CoreError, CoreResult};
 mod accounts;
 mod bookings;
 mod categories;
+mod holdings;
 mod merge;
 mod rules;
 mod settings;
@@ -513,6 +514,7 @@ mod upgrade_tests {
                  ALTER TABLE transactions DROP COLUMN salary_flag;
                  ALTER TABLE booking_documents DROP COLUMN exported_at;
                  DROP TABLE recurring_series; DROP TABLE sync_log;
+                 DROP TABLE holding_purchases; DROP TABLE security_prices;
                  PRAGMA user_version = 8; -- written by a probe-based build (before #206)",
             )
             .unwrap();

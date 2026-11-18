@@ -185,6 +185,34 @@ pub struct Holding {
     pub value_cents: i64,
 }
 
+/// The user's own, manually entered purchase data for one security held in
+/// one account. Survives a holdings sync, unlike [`Holding`] itself (see
+/// `schema::HOLDING_EXTRAS`).
+#[derive(Debug, Clone, PartialEq, Default, uniffi::Record)]
+pub struct HoldingPurchase {
+    pub account_id: i64,
+    pub isin: String,
+    pub wkn: String,
+    /// ISO date (`YYYY-MM-DD`); empty = not entered.
+    pub purchased_at: String,
+    /// `None` = use the position's synced purchase price, if any.
+    pub purchase_price_cents: Option<i64>,
+    pub note: String,
+}
+
+/// One day's closing price of a security (one ISIN, shared across every
+/// account that holds it).
+#[derive(Debug, Clone, PartialEq, Default, uniffi::Record)]
+pub struct SecurityPricePoint {
+    /// ISO date (`YYYY-MM-DD`).
+    pub price_date: String,
+    pub close_price_cents: i64,
+    pub currency: String,
+    /// `"sync"` = taken from a connector at sync time; anything else is an
+    /// external history provider's key.
+    pub source: String,
+}
+
 #[derive(Debug, Clone, uniffi::Record)]
 pub struct Account {
     pub id: i64,

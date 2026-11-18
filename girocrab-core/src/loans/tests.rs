@@ -372,8 +372,12 @@ fn vault_without_loan_tables_is_migrated() {
     {
         let db = v.db().unwrap();
         // a schema-8 vault from before the loan feature (schema 9 repairs it)
-        db.execute_batch("DROP TABLE loan_links; DROP TABLE loan_terms; DROP TABLE sync_log; PRAGMA user_version = 8;")
-            .unwrap();
+        db.execute_batch(
+            "DROP TABLE loan_links; DROP TABLE loan_terms; DROP TABLE sync_log;
+             DROP TABLE holding_purchases; DROP TABLE security_prices;
+             PRAGMA user_version = 8;",
+        )
+        .unwrap();
         // rules still run on a vault that lacks the tables
         Vault::apply_rules_inner(&db, true).unwrap();
     }
