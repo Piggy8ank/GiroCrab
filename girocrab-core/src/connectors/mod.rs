@@ -33,6 +33,7 @@ pub mod trade_republic;
 
 mod catalog;
 mod persist;
+mod price_history;
 mod sync_session;
 mod transfer_session;
 mod types;
