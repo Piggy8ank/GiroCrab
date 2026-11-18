@@ -66,6 +66,61 @@ fn store_fetch_matches_depot_holdings_without_iban() {
 }
 
 #[test]
+fn store_fetch_snapshots_a_sync_price_for_each_priced_holding() {
+    let p_dir = crate::test_support::TempDir::new("girocrab-depot-price");
+    let p = p_dir.join("v.db");
+    let v = Vault::open(p.to_string_lossy().to_string(), vec![3u8; 32]).unwrap();
+    let conn = v
+        .add_bank_connection(ConnectorKind::Comdirect, String::new(), "login".into())
+        .unwrap();
+    let fetch = |price_cents: i64| FetchResult {
+        accounts: vec![RemoteAccount {
+            external_ref: "D1".into(),
+            name: "Depot".into(),
+            owner: String::new(),
+            iban: String::new(),
+            account_number: String::new(),
+            currency: "EUR".into(),
+            kind: AccountKind::Brokerage,
+            balance_cents: 5000,
+            balance_date: "2026-11-10".into(),
+        }],
+        holdings: vec![RemoteHolding {
+            account_ref: "D1".into(),
+            holding: crate::models::Holding {
+                isin: "DE0001234567".into(),
+                name: "X".into(),
+                quantity: 2.0,
+                current_price_cents: price_cents,
+                value_cents: price_cents * 2,
+                ..Default::default()
+            },
+        }],
+        ..Default::default()
+    };
+    // No price on the position: nothing to snapshot, no error either.
+    store_fetch(&v, ConnectorKind::Comdirect, conn, fetch(0)).unwrap();
+    assert!(v
+        .security_price_history("DE0001234567".into())
+        .unwrap()
+        .is_empty());
+
+    // A priced position snapshots today's close under source "sync".
+    store_fetch(&v, ConnectorKind::Comdirect, conn, fetch(12_345)).unwrap();
+    let history = v.security_price_history("DE0001234567".into()).unwrap();
+    assert_eq!(history.len(), 1);
+    assert_eq!(history[0].close_price_cents, 12_345);
+    assert_eq!(history[0].currency, "EUR");
+    assert_eq!(history[0].source, "sync");
+
+    // A second sync the same day overwrites rather than duplicates.
+    store_fetch(&v, ConnectorKind::Comdirect, conn, fetch(99_999)).unwrap();
+    let history = v.security_price_history("DE0001234567".into()).unwrap();
+    assert_eq!(history.len(), 1, "same-day sync must replace, not append");
+    assert_eq!(history[0].close_price_cents, 99_999);
+}
+
+#[test]
 fn archived_psd2_account_is_not_reported_as_revoked() {
     // #65 (archive) + #66 (revoked marking): an account the user archived
     // is skipped by store_fetch, so it must not look "missing" from a

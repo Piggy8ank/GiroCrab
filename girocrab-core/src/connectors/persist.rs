@@ -413,14 +413,49 @@ pub(crate) fn store_fetch(
             depots.len(),
             by_account.len()
         ));
+        // Currency of each depot, for the price snapshots below; depots
+        // rarely set this explicitly, so fall back to EUR.
+        let currency_by_account: HashMap<i64, String> = data
+            .accounts
+            .iter()
+            .filter_map(|a| {
+                account_ids
+                    .get(&a.external_ref)
+                    .map(|&id| (id, a.currency.clone()))
+            })
+            .collect();
+        let price_today = today();
         for (acc_id, list) in &by_account {
             tx.execute("DELETE FROM holdings WHERE account_id = ?1", [acc_id])?;
+            let currency = currency_by_account
+                .get(acc_id)
+                .filter(|c| !c.is_empty())
+                .cloned()
+                .unwrap_or_else(|| "EUR".into());
             for h in list {
                 tx.execute(
                     "INSERT INTO holdings(account_id, isin, wkn, name, quantity, current_price_cents, purchase_price_cents, value_cents)
                      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
                     params![acc_id, h.isin, h.wkn, h.name, h.quantity, h.current_price_cents, h.purchase_price_cents, h.value_cents],
                 )?;
+                // Keep a daily price snapshot per security (shared across
+                // accounts), so the holding's price history survives the
+                // next sync even though `holdings` itself is replaced
+                // wholesale above. A fresh sync always wins for today over
+                // an older sync or an external backfill (see
+                // `Vault::record_security_price`, whose "sync" branch this
+                // mirrors so it can run inside the same transaction).
+                if !h.isin.is_empty() && h.current_price_cents > 0 {
+                    tx.execute(
+                        "INSERT INTO security_prices(isin, price_date, close_price_cents, currency, source)
+                         VALUES (?1, ?2, ?3, ?4, 'sync')
+                         ON CONFLICT(isin, price_date) DO UPDATE SET
+                            close_price_cents = excluded.close_price_cents,
+                            currency = excluded.currency,
+                            source = 'sync'",
+                        params![h.isin, price_today, h.current_price_cents, currency],
+                    )?;
+                }
             }
         }
         let mut imported = 0u32;
