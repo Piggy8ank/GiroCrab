@@ -25,6 +25,7 @@ use crate::error::{CoreError, CoreResult};
 mod accounts;
 mod bookings;
 mod categories;
+mod depot_analytics;
 mod holdings;
 mod merge;
 mod rules;

@@ -213,6 +213,58 @@ pub struct SecurityPricePoint {
     pub source: String,
 }
 
+/// One day's total value of a depot (every position held on that day, at
+/// that day's close) – see `Vault::portfolio_value_over_time`.
+#[derive(Debug, Clone, PartialEq, Default, uniffi::Record)]
+pub struct PortfolioValuePoint {
+    /// ISO date (`YYYY-MM-DD`).
+    pub date: String,
+    pub value_cents: i64,
+}
+
+/// One position's share of a depot's current total value – see
+/// `Vault::depot_allocation`.
+#[derive(Debug, Clone, PartialEq, Default, uniffi::Record)]
+pub struct PositionAllocation {
+    pub isin: String,
+    pub wkn: String,
+    pub name: String,
+    pub value_cents: i64,
+    /// 0..1 of the depot's total value (0 if the depot is worth nothing).
+    pub share: f64,
+}
+
+/// One position's gain/loss since its manually entered purchase – see
+/// `Vault::position_performance`. `None` when no purchase price is known
+/// (nothing entered, and the connector supplied none either).
+#[derive(Debug, Clone, PartialEq, Default, uniffi::Record)]
+pub struct PositionPerformance {
+    pub isin: String,
+    pub wkn: String,
+    /// ISO date (`YYYY-MM-DD`); empty = purchase date not entered.
+    pub purchased_at: String,
+    pub purchase_price_cents: Option<i64>,
+    pub current_price_cents: i64,
+    pub quantity: f64,
+    /// `(current - purchase) * quantity`; `None` without a purchase price.
+    pub gain_cents: Option<i64>,
+    /// `(current - purchase) / purchase`; `None` without a purchase price
+    /// or a zero purchase price.
+    pub gain_percent: Option<f64>,
+}
+
+/// One dividend-like credit found among an account's bookings – a
+/// heuristic match (see `Vault::list_dividend_payments`), not a precise
+/// per-security breakdown: bookings don't carry an ISIN.
+#[derive(Debug, Clone, PartialEq, Default, uniffi::Record)]
+pub struct DividendPayment {
+    /// ISO date (`YYYY-MM-DD`).
+    pub booking_date: String,
+    pub counterparty: String,
+    pub amount_cents: i64,
+    pub currency: String,
+}
+
 #[derive(Debug, Clone, uniffi::Record)]
 pub struct Account {
     pub id: i64,
